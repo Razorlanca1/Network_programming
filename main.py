@@ -573,7 +573,7 @@ class Graph:
 
     def clear_all_colors(self):
         for edge in self.edges:
-            edge.set_color((255, 255, 255))
+            edge.set_color((0, 0, 0))
 
         for node in self.nodes:
             node.set_color((255, 255, 255))
@@ -612,16 +612,17 @@ class Graph:
             v = self.routing_path.pop()
             if v[1] == 0:
                 v[0].set_color((72, 125, 231))
+                self.was_routing.add(v[0])
                 self.tec_routing_path.append([v[0], v[1]])
                 for edge in v[0].get_edges():
-                    if edge.get_parent() == v[0] and edge.get_parent() not in self.was_routing:
+                    if edge.get_parent() == v[0] and edge.get_child() not in self.was_routing:
                         self.routing_path.append([edge.get_child(), v[1] + 1, edge])
-                        self.was_routing.add(edge.get_parent())
+                        self.was_routing.add(edge.get_child())
             else:
                 if len(self.tec_routing_path) and self.tec_routing_path[-1][1] != v[1] - 1:
                     self.tec_routing_path.pop()[0].set_color((255, 255, 255))
                     if len(self.tec_routing_path):
-                        self.tec_routing_path.pop().set_color((255, 255, 255))
+                        self.tec_routing_path.pop().set_color((0, 0, 0))
                     self.routing_path.append(v)
                     return
 
@@ -643,15 +644,15 @@ class Graph:
                     return
 
                 for edge in v[0].get_edges():
-                    if edge.get_parent() == v[0] and edge.get_parent() not in self.was_routing:
-                        self.was_routing.add(edge.get_parent())
+                    if edge.get_parent() == v[0] and edge.get_child() not in self.was_routing:
                         self.routing_path.append([edge.get_child(), v[1] + 1, edge])
+                        self.was_routing.add(edge.get_child())
 
         elif not self.is_finish_routing:
             if len(self.tec_routing_path):
                 self.tec_routing_path.pop()[0].set_color((255, 255, 255))
                 if len(self.tec_routing_path):
-                    self.tec_routing_path.pop().set_color((255, 255, 255))
+                    self.tec_routing_path.pop().set_color((0, 0, 0))
                 return
 
             self.is_finish_routing = True
