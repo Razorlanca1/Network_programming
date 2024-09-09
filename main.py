@@ -107,7 +107,11 @@ class Edge:
         diff_x = (to[0] - path[0][0])
         diff_y = (to[1] - path[0][1])
 
-        coff = 20 / (abs(diff_x) + abs(diff_y))
+        if abs(diff_x) + abs(diff_y) != 0:
+            coff = 20 / (abs(diff_x) + abs(diff_y))
+        else:
+            coff = 0
+
         diff_x *= coff
         diff_y *= coff
 
@@ -140,7 +144,11 @@ class Edge:
         diff_x = (finish[0] - start[0])
         diff_y = (finish[1] - start[1])
 
-        coff = 10 / (abs(diff_x) + abs(diff_y))
+        if abs(diff_x) + abs(diff_y) != 0:
+            coff = 10 / (abs(diff_x) + abs(diff_y))
+        else:
+            coff = 0
+
         diff_x *= coff
         diff_y *= coff
 
@@ -272,7 +280,7 @@ class Graph:
             self.get_node_by_num(self.drag_num).set_pos(new_x, new_y)
 
         for edge in self.edges:
-            if not self.is_drag and edge.get_num() not in self.selected_edges and edge.get_color() != (72, 125, 231):
+            if not self.is_drag and edge.get_num() not in self.selected_edges and edge.get_color() != (72, 125, 231) and not self.is_start_routing:
                 if edge.collision(pygame.mouse.get_pos()):
                     edge.set_color((102, 102, 102))
                 else:
@@ -622,6 +630,13 @@ class Graph:
                 self.tec_routing_path.append([v[0], v[1]])
                 v[0].set_color((72, 125, 231))
                 if v[0] == self.routing_finish:
+                    print(self.tec_routing_path)
+                    for i in range(len(self.tec_routing_path)):
+                        if i % 2:
+                            self.tec_routing_path[i].set_color((0, 255, 0))
+                        else:
+                            self.tec_routing_path[i][0].set_color((0, 255, 0))
+
                     self.is_finish_routing = True
                     self.routing_path.clear()
                     mb.showinfo("Информация", "Путь найден")
