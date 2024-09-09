@@ -241,6 +241,7 @@ class Graph:
         self.routing_finish = 0
         self.routing_path = []
         self.tec_routing_path = []
+        self.was_routing = set()
         self.routing_time = datetime.datetime.now()
         self.is_start_routing = False
         self.is_finish_routing = False
@@ -585,6 +586,8 @@ class Graph:
 
         self.is_start_routing = True
         self.routing_path.clear()
+        self.was_routing.clear()
+        self.tec_routing_path.clear()
 
         self.routing_finish = self.get_node_by_num(finish)
         node = self.get_node_by_num(start)
@@ -603,8 +606,9 @@ class Graph:
                 v[0].set_color((72, 125, 231))
                 self.tec_routing_path.append([v[0], v[1]])
                 for edge in v[0].get_edges():
-                    if edge.get_parent() == v[0]:
+                    if edge.get_parent() == v[0] and edge.get_parent() not in self.was_routing:
                         self.routing_path.append([edge.get_child(), v[1] + 1, edge])
+                        self.was_routing.add(edge.get_parent())
             else:
                 if len(self.tec_routing_path) and self.tec_routing_path[-1][1] != v[1] - 1:
                     self.tec_routing_path.pop()[0].set_color((255, 255, 255))
@@ -624,7 +628,8 @@ class Graph:
                     return
 
                 for edge in v[0].get_edges():
-                    if edge.get_parent() == v[0]:
+                    if edge.get_parent() == v[0] and edge.get_parent() not in self.was_routing:
+                        self.was_routing.add(edge.get_parent())
                         self.routing_path.append([edge.get_child(), v[1] + 1, edge])
 
         elif not self.is_finish_routing:
