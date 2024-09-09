@@ -238,6 +238,13 @@ class Graph:
         self.selected_edges = set()
         self.path = []
 
+        self.routing_finish = 0
+        self.routing_path = []
+        self.tec_routing_path = []
+        self.routing_time = datetime.datetime.now()
+        self.is_start_routing = False
+        self.is_finish_routing = False
+
         nodes_num, edges_num = map(int, f.readline().split())
         self.nodes_num = nodes_num
         edges_dist = list(map(int, f.readline().split()))
@@ -255,6 +262,9 @@ class Graph:
         f.close()
 
     def process(self):
+        if self.is_start_routing:
+            self.process_routing()
+
         if self.is_drag:
             new_x = pygame.mouse.get_pos()[0] - self.drag_x
             new_y = pygame.mouse.get_pos()[1] - self.drag_y
@@ -302,6 +312,9 @@ class Graph:
         self.drag_num = 0
 
     def select_node(self, node_num):
+        if self.is_routing():
+            return
+
         for i in self.path:
             i.set_color((255, 255, 255))
         self.path.clear()
@@ -313,7 +326,22 @@ class Graph:
             self.selected_nodes.add(node_num)
             self.get_node_by_num(node_num).set_color((0, 255, 0))
 
+    def is_routing(self):
+        if self.is_start_routing and (not self.is_finish_routing) and \
+                mb.askquestion("Информация", "Прервать выполнение простой маршрутизации?") == 'no':
+            return True
+        if self.is_start_routing:
+            self.clear_all_colors()
+            self.is_start_routing = False
+            self.is_finish_routing = False
+            self.tec_routing_path.clear()
+
+        return False
+
     def select_edge(self, edge_num):
+        if self.is_routing():
+            return
+
         for i in self.path:
             i.set_color((255, 255, 255))
         self.path.clear()
@@ -338,10 +366,16 @@ class Graph:
         return None
 
     def add_node(self):
+        if self.is_routing():
+            return
+
         self.nodes_num += 1
         self.nodes.append(Node(self.nodes_num))
 
     def remove_selected(self):
+        if self.is_routing():
+            return
+
         self.stop_drag_and_drop()
         if mb.askquestion("Подтверждение", f"Вы уверены что хотите удалить выбранное?") == 'no':
             return
@@ -363,7 +397,6 @@ class Graph:
             self.nodes.remove(self.get_node_by_num(node))
 
         self.selected_nodes.clear()
-        print(self.selected_nodes)
 
     def add_edge(self):
         self.stop_drag_and_drop()
@@ -403,6 +436,9 @@ class Graph:
         return path
 
     def start_one_Dijkstra(self):
+        if self.is_routing():
+            return
+
         if len(self.selected_nodes) != 2 or len(self.selected_edges) != 0:
             mb.showinfo("Информация", "Для запуска алгоритма Дейкстры необходимо выбрать только 2 вершины")
             return
@@ -424,7 +460,8 @@ class Graph:
         self.path.append(tec)
         while tec.get_num() != start:
             for edge in tec.get_edges():
-                if edge.get_child() == tec and path[edge.get_parent().get_num()] + edge.get_distance() == path[tec.get_num()]:
+                if edge.get_child() == tec and path[edge.get_parent().get_num()] + edge.get_distance() == path[
+                    tec.get_num()]:
                     self.path.append(edge)
                     tec = edge.get_parent()
                     self.path.append(tec)
@@ -436,6 +473,9 @@ class Graph:
             i.set_color((72, 125, 231))
 
     def start_all_pathes(self):
+        if self.is_routing():
+            return
+
         all_pathes = {}
         time = datetime.timedelta(0)
         for node in self.nodes:
@@ -451,7 +491,8 @@ class Graph:
                 for edge in v.get_edges():
                     child_num = edge.get_child().get_num()
                     if edge.get_parent() == v and path[num] + edge.get_distance() == path[child_num]:
-                        all_pathes[(tec_num, child_num)] = [all_pathes[(tec_num, num)][0] + [child_num], path[child_num]]
+                        all_pathes[(tec_num, child_num)] = [all_pathes[(tec_num, num)][0] + [child_num],
+                                                            path[child_num]]
                         q.append(edge.get_child())
             for n in self.nodes:
                 num = n.get_num()
@@ -462,7 +503,8 @@ class Graph:
         f.write('Алгоритм Дейкстры \n\n')
         f.write(f'Время выполнения Дейкстры {time} \n')
         for x, y in all_pathes.keys():
-            f.write(f'Вершины {x, y}, путь - { " ".join(map(str, all_pathes[(x, y)][0]))}, длина пути - {all_pathes[(x, y)][1]} \n')
+            f.write(
+                f'Вершины {x, y}, путь - {" ".join(map(str, all_pathes[(x, y)][0]))}, длина пути - {all_pathes[(x, y)][1]} \n')
 
         all_pathes.clear()
         f.close()
@@ -499,8 +541,10 @@ class Graph:
                 num = v.get_num()
                 for edge in v.get_edges():
                     child_num = edge.get_child().get_num()
-                    if edge.get_parent() == v and path[(tec_num, num)] + edge.get_distance() == path[(tec_num, child_num)]:
-                        all_pathes[(tec_num, child_num)] = [all_pathes[(tec_num, num)][0] + [child_num], path[(tec_num, child_num)]]
+                    if edge.get_parent() == v and path[(tec_num, num)] + edge.get_distance() == path[
+                        (tec_num, child_num)]:
+                        all_pathes[(tec_num, child_num)] = [all_pathes[(tec_num, num)][0] + [child_num],
+                                                            path[(tec_num, child_num)]]
                         q.append(edge.get_child())
 
             for n in self.nodes:
@@ -511,11 +555,88 @@ class Graph:
         f.write('Алгоритм Флойда \n\n')
         f.write(f'Время выполнения Флойда {time} \n')
         for x, y in all_pathes.keys():
-            f.write(f'Вершины {x, y}, путь - { " ".join(map(str, all_pathes[(x, y)][0]))}, длина пути - {all_pathes[(x, y)][1]} \n')
+            f.write(
+                f'Вершины {x, y}, путь - {" ".join(map(str, all_pathes[(x, y)][0]))}, длина пути - {all_pathes[(x, y)][1]} \n')
 
         f.close()
         os.startfile('all_path_dijkstra.txt')
         os.startfile('all_path_floyd.txt')
+
+    def clear_all_colors(self):
+        for edge in self.edges:
+            edge.set_color((255, 255, 255))
+
+        for node in self.nodes:
+            node.set_color((255, 255, 255))
+
+    def start_simple_routing(self):
+        if self.is_routing():
+            return
+
+        if len(self.selected_nodes) != 2 or len(self.selected_edges) != 0:
+            mb.showinfo("Информация", "Для запуска алгоритма простой маршруизации необходимо выбрать только 2 вершины")
+            return
+
+        start, finish = list(self.selected_nodes)
+        if mb.askquestion("Главная вершина", f"Найти путь от вершины {start} к вершине {finish}?") == 'no':
+            start, finish = finish, start
+
+        self.selected_nodes.clear()
+
+        self.is_start_routing = True
+        self.routing_path.clear()
+
+        self.routing_finish = self.get_node_by_num(finish)
+        node = self.get_node_by_num(start)
+
+        self.routing_path.append([node, 0])
+
+    def process_routing(self):
+        if datetime.datetime.now() - self.routing_time < datetime.timedelta(seconds=0.5):
+            return
+
+        self.routing_time = datetime.datetime.now()
+
+        if not self.is_finish_routing and len(self.routing_path):
+            v = self.routing_path.pop()
+            if v[1] == 0:
+                v[0].set_color((72, 125, 231))
+                self.tec_routing_path.append([v[0], v[1]])
+                for edge in v[0].get_edges():
+                    if edge.get_parent() == v[0]:
+                        self.routing_path.append([edge.get_child(), v[1] + 1, edge])
+            else:
+                if len(self.tec_routing_path) and self.tec_routing_path[-1][1] != v[1] - 1:
+                    self.tec_routing_path.pop()[0].set_color((255, 255, 255))
+                    if len(self.tec_routing_path):
+                        self.tec_routing_path.pop().set_color((255, 255, 255))
+                    self.routing_path.append(v)
+                    return
+
+                self.tec_routing_path.append(v[2])
+                v[2].set_color((72, 125, 231))
+                self.tec_routing_path.append([v[0], v[1]])
+                v[0].set_color((72, 125, 231))
+                if v[0] == self.routing_finish:
+                    self.is_finish_routing = True
+                    self.routing_path.clear()
+                    mb.showinfo("Информация", "Путь найден")
+                    return
+
+                for edge in v[0].get_edges():
+                    if edge.get_parent() == v[0]:
+                        self.routing_path.append([edge.get_child(), v[1] + 1, edge])
+
+        elif not self.is_finish_routing:
+            if len(self.tec_routing_path):
+                self.tec_routing_path.pop()[0].set_color((255, 255, 255))
+                if len(self.tec_routing_path):
+                    self.tec_routing_path.pop().set_color((255, 255, 255))
+                return
+
+            self.is_finish_routing = True
+            self.clear_all_colors()
+            mb.showinfo("Информация", "Пути не существует")
 
 
 pygame.init()
@@ -523,7 +644,7 @@ pygame.font.init()
 
 button_size = (200, 50)
 my_font = pygame.font.SysFont('Comic Sans MS', 20)
-screen = pygame.display.set_mode((1200, 700))
+screen = pygame.display.set_mode((1300, 700))
 graph = Graph()
 buttons = []
 
@@ -534,6 +655,7 @@ Button(200, 0, *button_size, 'Удалить выбранное', graph.remove_s
 Button(400, 0, *button_size, 'Добавить ребро', graph.add_edge)
 Button(600, 0, *button_size, 'Алгоритм Дейкстры', graph.start_one_Dijkstra)
 Button(800, 0, *button_size, 'Найти все пути', graph.start_all_pathes)
+Button(1000, 0, 300, 50, 'Простая маршрутизация', graph.start_simple_routing)
 
 while True:
     screen.fill((255, 255, 255))
