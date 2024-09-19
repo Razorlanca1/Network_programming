@@ -2,11 +2,62 @@ import os
 
 import pygame, sys, random, math, datetime
 from shapely.geometry import LineString, Point, Polygon
-from tkinter import simpledialog
 import tkinter.messagebox as mb
 from ordered_set import OrderedSet
+from tkinter import *
 
 inf = 1e18
+
+
+class Table(Tk):
+    def __init__(self, table, parent=None):
+        Tk.__init__(self, parent)
+        self.parent = parent
+        self.table = table
+        self.ret = []
+        self.initialize()
+
+    def initialize(self):
+        self.grid()
+
+        lines = len(self.table)
+
+        for i in range(lines):
+            for j in range(lines):
+                state = NORMAL
+                if i == 0 or j == 0:
+                    state = DISABLED
+
+                intvar = IntVar()
+                intvar.set(self.table[i][j])
+                self.table[i][j] = intvar
+
+                self.e = Entry(self, width=5, state=state, textvariable=self.table[i][j],
+                               fg='blue', font=('Arial', 16, 'bold'))
+
+                self.e.grid(row=i, column=j)
+
+        SubmitBtn = Button(text="OK", command=self.submit)
+        SubmitBtn.grid(row=lines, column=lines // 2, sticky='W', padx=5, pady=2)
+
+        self.title("Матрица инцидентности")
+        self.resizable(False, False)
+        self.mainloop()
+
+    def submit(self):
+        for i in range(len(self.table)):
+            self.ret.append([])
+            for j in range(len(self.table)):
+                try:
+                    if i == j:
+                        raise Exception
+                    self.ret[i].append(self.table[i][j].get())
+                except:
+                    self.ret[i].append(0)
+        self.quit()
+
+    def get(self):
+        return self.ret
 
 
 def rotate(origin, point, angle):
@@ -20,7 +71,7 @@ def rotate(origin, point, angle):
     return qx, qy
 
 
-class Button:
+class Button_menu:
     def __init__(self, x, y, width, height, buttonText, onclickFunction):
         global my_font, buttons
 
@@ -469,8 +520,8 @@ class Graph:
         self.path.append(tec)
         while tec.get_num() != start:
             for edge in tec.get_edges():
-                if edge.get_child() == tec and path[edge.get_parent().get_num()] + edge.get_distance() == path[
-                    tec.get_num()]:
+                if edge.get_child() == tec and \
+                        path[edge.get_parent().get_num()] + edge.get_distance() == path[tec.get_num()]:
                     self.path.append(edge)
                     tec = edge.get_parent()
                     self.path.append(tec)
@@ -659,6 +710,46 @@ class Graph:
             self.clear_all_colors()
             mb.showinfo("Информация", "Пути не существует")
 
+    def table(self):
+        nodes = self.nodes[::]
+        nodes.sort(key=lambda x: x.get_num())
+        nodes_num = {}
+        for i, num in enumerate(nodes):
+            nodes_num[num] = i + 1
+
+        table = [[0 for _ in range(len(nodes) + 1)] for _ in range(len(nodes) + 1)]
+        for i in range(len(nodes)):
+            table[0][i + 1] = nodes[i].get_num()
+
+        for i in range(len(nodes)):
+            table[i + 1][0] = nodes[i].get_num()
+
+        for edge in self.edges:
+            parent = nodes_num[edge.get_parent()]
+            child = nodes_num[edge.get_child()]
+            table[parent][child] = edge.get_distance()
+
+        for i in table:
+            print(i)
+
+        self.selected_edges.clear()
+        self.edges.clear()
+        for node in nodes:
+            node.edges.clear()
+
+        t = Table(table)
+        ret = t.get()
+        for i in range(1, len(ret)):
+            parent = nodes[i - 1]
+            for j in range(1, len(ret)):
+                child = nodes[j - 1]
+                if ret[i][j] != 0:
+                    self.edges.append(Edge(parent, child, ret[i][j]))
+                    parent.add_edge(self.edges[-1])
+                    child.add_edge(self.edges[-1])
+
+        t.destroy()
+
 
 pygame.init()
 pygame.font.init()
@@ -671,12 +762,13 @@ buttons = []
 
 frame = 0
 
-Button(0, 0, *button_size, 'Добавить вершину', graph.add_node)
-Button(200, 0, *button_size, 'Удалить выбранное', graph.remove_selected)
-Button(400, 0, *button_size, 'Добавить ребро', graph.add_edge)
-Button(600, 0, *button_size, 'Алгоритм Дейкстры', graph.start_one_Dijkstra)
-Button(800, 0, *button_size, 'Найти все пути', graph.start_all_pathes)
-Button(1000, 0, 300, 50, 'Простая маршрутизация', graph.start_simple_routing)
+Button_menu(0, 0, 1300, 30, 'Матрица инцидентности', graph.table)
+Button_menu(0, 30, 200, 30, 'Добавить вершину', graph.add_node)
+Button_menu(200, 30, 200, 30, 'Удалить выбранное', graph.remove_selected)
+Button_menu(400, 30, 200, 30, 'Добавить ребро', graph.add_edge)
+Button_menu(600, 30, 200, 30, 'Алгоритм Дейкстры', graph.start_one_Dijkstra)
+Button_menu(800, 30, 200, 30, 'Найти все пути', graph.start_all_pathes)
+Button_menu(1000, 30, 300, 30, 'Простая маршрутизация', graph.start_simple_routing)
 
 while True:
     screen.fill((255, 255, 255))
