@@ -10,6 +10,17 @@ from tkinter import *
 inf = 1e18
 
 
+def rotate(origin, point, angle):
+    angle *= math.pi / 180
+
+    ox, oy = origin
+    px, py = point
+
+    qx = ox + math.cos(angle) * (px - ox) - math.sin(angle) * (py - oy)
+    qy = oy + math.sin(angle) * (px - ox) + math.cos(angle) * (py - oy)
+    return qx, qy
+
+
 class Table(Tk):
     def __init__(self, table, parent=None):
         Tk.__init__(self, parent)
@@ -69,17 +80,6 @@ class Table(Tk):
 
     def get(self):
         return self.ret
-
-
-def rotate(origin, point, angle):
-    angle *= math.pi / 180
-
-    ox, oy = origin
-    px, py = point
-
-    qx = ox + math.cos(angle) * (px - ox) - math.sin(angle) * (py - oy)
-    qy = oy + math.sin(angle) * (px - ox) + math.cos(angle) * (py - oy)
-    return qx, qy
 
 
 class Button_menu:
@@ -332,6 +332,8 @@ class Graph:
 
         f.close()
 
+        self.label = my_font.render("", False, (20, 20, 20))
+
     def process(self):
         if self.is_start_routing:
             self.process_routing()
@@ -351,6 +353,8 @@ class Graph:
 
         for node in self.nodes:
             node.process()
+
+        screen.blit(self.label, (50, screen.get_height() - 50))
 
     def drag_and_drop(self, pos):
         global frame
@@ -437,6 +441,7 @@ class Graph:
         return None
 
     def add_node(self):
+        self.label = my_font.render("", False, (20, 20, 20))
         if self.is_routing():
             return
 
@@ -444,6 +449,7 @@ class Graph:
         self.nodes.append(Node(self.nodes_num))
 
     def remove_selected(self):
+        self.label = my_font.render("", False, (20, 20, 20))
         if self.is_routing():
             return
 
@@ -470,6 +476,7 @@ class Graph:
         self.selected_nodes.clear()
 
     def add_edge(self):
+        self.label = my_font.render("", False, (20, 20, 20))
         self.stop_drag_and_drop()
         if len(self.selected_nodes) != 2 or len(self.selected_edges) != 0:
             mb.showinfo("Информация", "Для добавления ребра необходимо выбрать только 2 вершины")
@@ -507,6 +514,7 @@ class Graph:
         return path
 
     def start_one_Dijkstra(self):
+        self.label = my_font.render("", False, (20, 20, 20))
         if self.is_routing():
             return
 
@@ -528,6 +536,7 @@ class Graph:
 
         tec = self.get_node_by_num(finish)
 
+        text = f"{tec.get_num()}. Длина пути: {path[finish]}"
         self.path.append(tec)
         while tec.get_num() != start:
             for edge in tec.get_edges():
@@ -536,14 +545,17 @@ class Graph:
                     self.path.append(edge)
                     tec = edge.get_parent()
                     self.path.append(tec)
+                    text = f"{tec.get_num()} -> " + text
                     break
 
-        mb.showinfo("Информация", f"Длина пути {path[finish]}")
+        text = f"Путь: " + text
+        self.label = my_font.render(text, False, (20, 20, 20))
 
         for i in self.path:
             i.set_color((72, 125, 231))
 
     def start_all_pathes(self):
+        self.label = my_font.render("", False, (20, 20, 20))
         if self.is_routing():
             return
 
@@ -641,6 +653,7 @@ class Graph:
             node.set_color((255, 255, 255))
 
     def start_simple_routing(self):
+        self.label = my_font.render("", False, (20, 20, 20))
         if self.is_routing():
             return
 
@@ -665,6 +678,7 @@ class Graph:
         self.routing_path.append([node, 0])
 
     def process_routing(self):
+        self.label = my_font.render("", False, (20, 20, 20))
         if datetime.datetime.now() - self.routing_time < datetime.timedelta(seconds=0.5):
             return
 
@@ -722,6 +736,10 @@ class Graph:
             mb.showinfo("Информация", "Пути не существует")
 
     def table(self):
+        self.label = my_font.render("", False, (20, 20, 20))
+        if self.is_routing():
+            return
+
         nodes = self.nodes[::]
         nodes.sort(key=lambda x: x.get_num())
         nodes_num = {}
