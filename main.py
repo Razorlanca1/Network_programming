@@ -1,4 +1,5 @@
 import os
+from tkinter import simpledialog
 
 import pygame, sys, random, math, datetime
 from shapely.geometry import LineString, Point, Polygon
@@ -19,6 +20,15 @@ class Table(Tk):
 
     def initialize(self):
         self.grid()
+        for i in range(len(self.table)):
+            self.ret.append([])
+            for j in range(len(self.table)):
+                try:
+                    if i == j:
+                        raise Exception
+                    self.ret[i].append(self.table[i][j])
+                except:
+                    self.ret[i].append(0)
 
         lines = len(self.table)
 
@@ -45,6 +55,7 @@ class Table(Tk):
         self.mainloop()
 
     def submit(self):
+        self.ret.clear()
         for i in range(len(self.table)):
             self.ret.append([])
             for j in range(len(self.table)):
@@ -54,7 +65,7 @@ class Table(Tk):
                     self.ret[i].append(self.table[i][j].get())
                 except:
                     self.ret[i].append(0)
-        self.quit()
+        self.destroy()
 
     def get(self):
         return self.ret
@@ -747,8 +758,6 @@ class Graph:
                     self.edges.append(Edge(parent, child, ret[i][j]))
                     parent.add_edge(self.edges[-1])
                     child.add_edge(self.edges[-1])
-
-        t.destroy()
 
 
 pygame.init()
