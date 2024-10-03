@@ -198,7 +198,9 @@ class Packet:
             if edge.get_parent() == self.tec_node:
                 n.append(edge.get_child())
 
+        print(n)
         if len(n) == 0:
+            self.next_node = self.tec_node
             graph.remove_packet(self)
             return
 
@@ -877,7 +879,7 @@ class Graph:
         self.label = my_font.render("", False, (20, 20, 20))
         if datetime.datetime.now() - self.routing_start_time > datetime.timedelta(seconds=self.routing_time_limit):
             mb.showinfo("Информация", "Время для простой маршруизации вышло. "
-                                      "Успешно доставлено пакетов {self.packets_finished}")
+                                      f"Успешно доставлено пакетов {self.packets_finished}")
             self.is_start_routing = False
             self.clear_all_colors()
             self.packets.clear()
@@ -885,7 +887,7 @@ class Graph:
 
         if len(self.packets) > self.routing_packet_limit:
             mb.showinfo("Информация", "Превышен лимит пакетов для простой маршруизации. "
-                                      "Успешно доставлено пакетов {self.packets_finished}")
+                                      f"Успешно доставлено пакетов {self.packets_finished}")
             self.is_start_routing = False
             self.clear_all_colors()
             self.packets.clear()
