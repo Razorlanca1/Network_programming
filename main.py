@@ -1,5 +1,6 @@
 import os
 from tkinter import simpledialog
+from typing import Tuple, Any
 
 import pygame, sys, random, math, datetime
 from shapely.geometry import LineString, Point, Polygon
@@ -82,6 +83,164 @@ class Table(Tk):
         return self.ret
 
 
+class RoutingSettings(Tk):
+    def __init__(self, parent=None):
+        Tk.__init__(self, parent)
+        self.was_set = False
+        self.initialize()
+
+    def initialize(self):
+        self.grid()
+
+        self.packet_label = Label(self, width=20, text="Количество пакетов", fg='black', font=('Arial', 10, 'bold'))
+        self.packet_label.grid(row=0, column=0, sticky='W', padx=5, pady=2, columnspan=2)
+
+        self.packet_count = IntVar(value=1)
+        self.packet = Entry(self, width=5, textvariable=self.packet_count, fg='black', font=('Arial', 10, 'bold'))
+        self.packet.grid(row=0, column=2, sticky='W', padx=5, pady=2)
+
+        self.time_label = Label(self, width=20, text="Лимит времени", fg='black', font=('Arial', 10, 'bold'))
+        self.time_label.grid(row=1, column=0, sticky='W', padx=5, pady=2, columnspan=2)
+
+        self.time_limit = IntVar(value=100)
+        self.time = Entry(self, width=5, textvariable=self.time_limit, fg='black', font=('Arial', 10, 'bold'))
+        self.time.grid(row=1, column=2, sticky='W', padx=5, pady=2)
+
+        self.packet_limit_label = Label(self, width=20, text="Лимит пакетов", fg='black', font=('Arial', 10, 'bold'))
+        self.packet_limit_label.grid(row=2, column=0, sticky='W', padx=5, pady=2, columnspan=2)
+
+        self.packet_limit = IntVar(value=10)
+        self.packet_limit_e = Entry(self, width=5, textvariable=self.packet_limit, fg='black', font=('Arial', 10, 'bold'))
+        self.packet_limit_e.grid(row=2, column=2, sticky='W', padx=5, pady=2)
+
+        self.protocol = StringVar(value="random")
+        self.RandomRadiobutton = Radiobutton(text="Случайная маршрутизация", value="random", font=('Arial', 10, 'bold'),
+                                          variable=self.protocol)
+        self.RandomRadiobutton.grid(row=3, column=0, sticky='W', padx=5, pady=2)
+
+        self.AllRadiobutton = Radiobutton(text="Лавинная маршрутизация", value="all_pathes", font=('Arial', 10, 'bold'),
+                                          variable=self.protocol)
+        self.AllRadiobutton.grid(row=4, column=0, sticky='W', padx=5, pady=2)
+
+        self.MemoryRadiobutton = Radiobutton(text="Фиксированная маршрутизация", value="memory", font=('Arial', 10, 'bold'),
+                                          variable=self.protocol)
+        self.MemoryRadiobutton.grid(row=5, column=0, sticky='W', padx=5, pady=2)
+
+        self.SubmitBtn = Button(text="OK", command=self.submit, width=25)
+        self.SubmitBtn.grid(row=6, column=0, sticky='W', padx=5, pady=2, columnspan=2)
+
+        self.title("Простая маршрутизация")
+        self.resizable(False, False)
+        self.mainloop()
+
+    def submit(self):
+        self.was_set = True
+
+        try:
+            self.packet_count = self.packet_count.get()
+        except Exception:
+            self.packet_count = 1
+
+        try:
+            self.time_limit = self.time_limit.get()
+        except Exception:
+            self.time_limit = 100
+
+        try:
+            self.packet_limit = self.packet_limit.get()
+        except Exception:
+            self.packet_limit = 10
+
+        self.protocol = self.protocol.get()
+
+        self.destroy()
+
+    def get(self) -> tuple[int, int, int, str]:
+        if self.was_set:
+            return self.packet_count, self.time_limit, self.packet_limit, self.protocol
+        return 0, 0, 0, ""
+
+
+class Packet:
+    def __init__(self, number, start_node, finish_node, method, path=None, next=None):
+        global my_font
+
+        self.number = number
+        self.tec_node = start_node
+        self.finish_node = finish_node
+        self.path = []
+        self.all_path = path
+        self.last_time = datetime.datetime.now()
+        self.method = method
+        self.color = (255, 255, 255)
+        self.text = my_font.render(str(self.number), False, (0, 0, 0))
+
+        if next:
+            self.next_node = next
+        else:
+            self.choose_next_node()
+
+    def get_number(self):
+        return self.number
+
+    def choose_next_node(self):
+        global graph
+
+        self.last_time = datetime.datetime.now()
+        if self.method == "memory":
+            if self.all_path:
+                self.next_node = self.all_path[-1]
+                self.all_path.pop()
+            return
+
+        n = []
+        for edge in self.tec_node.get_edges():
+            if edge.get_parent() == self.tec_node:
+                n.append(edge.get_child())
+
+        if len(n) == 0:
+            graph.remove_packet(self)
+            return
+
+        if self.method == "random":
+            self.next_node = random.choice(n)
+            return
+
+        self.next_node = n[0]
+        for i in range(1, len(n)):
+            graph.add_packet(Packet(self.number, self.tec_node, self.finish_node, self.method, next=n[i]))
+
+    def is_success(self) -> bool:
+        return self.finish_node == self.tec_node
+
+    def process(self):
+        global screen, graph
+
+        if datetime.datetime.now() - self.last_time > datetime.timedelta(seconds=1):
+            self.path.append(self.tec_node)
+            self.tec_node = self.next_node
+            self.choose_next_node()
+
+        if self.tec_node == self.finish_node:
+            self.path.append(self.finish_node)
+            graph.add_memory_path(self.path[1:])
+            graph.remove_packet(self)
+            return
+
+        delta = (datetime.datetime.now() - self.last_time).microseconds / 1000000
+
+        start_x, start_y = self.tec_node.get_pos()
+        fin_x, fin_y = self.next_node.get_pos()
+        x = start_x + (fin_x - start_x) * delta
+        y = start_y + (fin_y - start_y) * delta
+
+        size_x, size_y = 30, 50
+
+        pygame.draw.rect(screen, (0, 0, 0), (x - size_x / 2, y - size_y / 2, size_x, size_y))
+        pygame.draw.rect(screen, self.color, (x - size_x / 2 + 1, y - size_y / 2 + 1, size_x - 2, size_y - 2))
+        screen.blit(self.text, (x - size_x / 3, y - size_y / 3))
+
+
 class Button_menu:
     def __init__(self, x, y, width, height, buttonText, onclickFunction):
         global my_font, buttons
@@ -125,6 +284,51 @@ class Button_menu:
             self.buttonRect.height / 2 - self.buttonSurf.get_rect().height / 2
         ])
         screen.blit(self.buttonSurface, self.buttonRect)
+
+
+class Node:
+    def __init__(self, number):
+        global my_font, button_size
+
+        self.number = number
+        self.radius = 25
+        self.edges = []
+
+        self.x = random.choice(range(self.radius, screen.get_width() - self.radius))
+        self.y = random.choice(range(self.radius + button_size[1], screen.get_height() - self.radius))
+        self.color = (255, 255, 255)
+        self.text = my_font.render(str(self.number), False, (0, 0, 0))
+
+    def process(self):
+        global screen
+
+        pygame.draw.circle(screen, (0, 0, 0), (self.x, self.y), self.radius)
+        pygame.draw.circle(screen, self.color, (self.x, self.y), self.radius - 1)
+        screen.blit(self.text, (self.x - self.radius / 3, self.y - self.radius / 2))
+
+    def get_pos(self):
+        return self.x, self.y
+
+    def set_pos(self, x, y):
+        self.x, self.y = x, y
+
+    def collision(self, pos):
+        return (((self.x - pos[0]) ** 2 + (self.y - pos[1]) ** 2) ** 0.5) <= 25
+
+    def set_color(self, color):
+        self.color = color
+
+    def get_num(self) -> int:
+        return self.number
+
+    def add_edge(self, edge):
+        self.edges.append(edge)
+
+    def remove_edge(self, edge):
+        self.edges.remove(edge)
+
+    def get_edges(self):
+        return self.edges
 
 
 class Edge:
@@ -193,7 +397,7 @@ class Edge:
         font_y = (path[0][1] + path[1][1]) / 2
         screen.blit(self.text, (font_x, font_y))
 
-    def collision(self, pos):
+    def collision(self, pos) -> bool:
         global screen
 
         path = self.get_start_and_finish()
@@ -231,65 +435,20 @@ class Edge:
         self.color = color
         self.text = my_font.render(str(self.distance), False, self.color)
 
-    def get_num(self):
+    def get_num(self) -> tuple[int, int]:
         return self.parent.get_num(), self.child.get_num()
 
-    def get_parent(self):
+    def get_parent(self) -> Node:
         return self.parent
 
-    def get_child(self):
+    def get_child(self) -> Node:
         return self.child
 
-    def get_distance(self):
+    def get_distance(self) -> int:
         return self.distance
 
     def get_color(self):
         return self.color
-
-
-class Node:
-    def __init__(self, number):
-        global my_font, button_size
-
-        self.number = number
-        self.radius = 25
-        self.edges = []
-
-        self.x = random.choice(range(self.radius, screen.get_width() - self.radius))
-        self.y = random.choice(range(self.radius + button_size[1], screen.get_height() - self.radius))
-        self.color = (255, 255, 255)
-        self.text = my_font.render(str(self.number), False, (0, 0, 0))
-
-    def process(self):
-        global screen
-
-        pygame.draw.circle(screen, (0, 0, 0), (self.x, self.y), self.radius)
-        pygame.draw.circle(screen, self.color, (self.x, self.y), self.radius - 1)
-        screen.blit(self.text, (self.x - self.radius / 3, self.y - self.radius / 2))
-
-    def get_pos(self):
-        return self.x, self.y
-
-    def set_pos(self, x, y):
-        self.x, self.y = x, y
-
-    def collision(self, pos):
-        return (((self.x - pos[0]) ** 2 + (self.y - pos[1]) ** 2) ** 0.5) <= 25
-
-    def set_color(self, color):
-        self.color = color
-
-    def get_num(self):
-        return self.number
-
-    def add_edge(self, edge):
-        self.edges.append(edge)
-
-    def remove_edge(self, edge):
-        self.edges.remove(edge)
-
-    def get_edges(self):
-        return self.edges
 
 
 class Graph:
@@ -308,10 +467,18 @@ class Graph:
         self.selected_edges = set()
         self.path = []
 
+        self.packets = []
+        self.packets_finished = 0
+        self.packet_number = 0
+        self.routing_start = 0
         self.routing_finish = 0
-        self.routing_path = []
-        self.tec_routing_path = []
-        self.was_routing = set()
+        self.routing_packet_count = 0
+        self.routing_time_limit = 0
+        self.routing_packet_limit = 0
+        self.memory_path = []
+        self.was_rout = set()
+        self.routing_method = ""
+        self.routing_start_time = datetime.datetime.now()
         self.routing_time = datetime.datetime.now()
         self.is_start_routing = False
         self.is_finish_routing = False
@@ -344,7 +511,8 @@ class Graph:
             self.get_node_by_num(self.drag_num).set_pos(new_x, new_y)
 
         for edge in self.edges:
-            if not self.is_drag and edge.get_num() not in self.selected_edges and edge.get_color() != (72, 125, 231) and not self.is_start_routing:
+            if not self.is_drag and edge.get_num() not in self.selected_edges and \
+                    edge.get_color() != (72, 125, 231) and not self.is_start_routing:
                 if edge.collision(pygame.mouse.get_pos()):
                     edge.set_color((102, 102, 102))
                 else:
@@ -353,6 +521,9 @@ class Graph:
 
         for node in self.nodes:
             node.process()
+
+        for packet in self.packets:
+            packet.process()
 
         screen.blit(self.label, (50, screen.get_height() - 50))
 
@@ -409,7 +580,6 @@ class Graph:
             self.clear_all_colors()
             self.is_start_routing = False
             self.is_finish_routing = False
-            self.tec_routing_path.clear()
 
         return False
 
@@ -428,13 +598,13 @@ class Graph:
             self.selected_edges.add(edge_num)
             self.get_edge_by_num(edge_num).set_color((0, 255, 0))
 
-    def get_node_by_num(self, num):
+    def get_node_by_num(self, num) -> Node | None:
         for node in self.nodes:
             if node.get_num() == num:
                 return node
         return None
 
-    def get_edge_by_num(self, num):
+    def get_edge_by_num(self, num) -> Edge | None:
         for edge in self.edges:
             if edge.get_num() == num:
                 return edge
@@ -652,11 +822,24 @@ class Graph:
         for node in self.nodes:
             node.set_color((255, 255, 255))
 
-    def start_simple_routing(self):
-        self.label = my_font.render("", False, (20, 20, 20))
-        if self.is_routing():
-            return
+    def add_packet(self, packet):
+        self.packets.append(packet)
 
+    def add_memory_path(self, path):
+        if not self.memory_path or len(path) < len(self.memory_path):
+            self.memory_path = path[::-1]
+
+    def remove_packet(self, packet):
+        if packet.is_success():
+            if packet.get_number() not in self.was_rout:
+                self.was_rout.add(packet.get_number())
+                self.packets_finished += 1
+        try:
+            self.packets.remove(packet)
+        except Exception:
+            pass
+
+    def start_simple_routing(self):
         if len(self.selected_nodes) != 2 or len(self.selected_edges) != 0:
             mb.showinfo("Информация", "Для запуска алгоритма простой маршруизации необходимо выбрать только 2 вершины")
             return
@@ -667,73 +850,78 @@ class Graph:
 
         self.selected_nodes.clear()
 
+        self.label = my_font.render("", False, (20, 20, 20))
+        if self.is_routing():
+            return
+
+        rot = RoutingSettings()
+        data = rot.get()
+
+        if data[0] == 0:
+            self.is_start_routing = False
+            self.clear_all_colors()
+            self.packets.clear()
+            return
+
         self.is_start_routing = True
-        self.routing_path.clear()
-        self.was_routing.clear()
-        self.tec_routing_path.clear()
-
+        self.packets_finished = 0
+        self.packet_number = 1
+        self.was_rout.clear()
+        self.memory_path.clear()
+        self.routing_packet_count, self.routing_time_limit, self.routing_packet_limit, self.routing_method = data
+        self.routing_start = self.get_node_by_num(start)
         self.routing_finish = self.get_node_by_num(finish)
-        node = self.get_node_by_num(start)
-
-        self.routing_path.append([node, 0])
+        self.routing_start_time = datetime.datetime.now()
 
     def process_routing(self):
         self.label = my_font.render("", False, (20, 20, 20))
-        if datetime.datetime.now() - self.routing_time < datetime.timedelta(seconds=0.5):
+        if datetime.datetime.now() - self.routing_start_time > datetime.timedelta(seconds=self.routing_time_limit):
+            mb.showinfo("Информация", "Время для простой маршруизации вышло. "
+                                      "Успешно доставлено пакетов {self.packets_finished}")
+            self.is_start_routing = False
+            self.clear_all_colors()
+            self.packets.clear()
             return
 
-        self.routing_time = datetime.datetime.now()
-
-        if not self.is_finish_routing and len(self.routing_path):
-            v = self.routing_path.pop()
-            if v[1] == 0:
-                v[0].set_color((72, 125, 231))
-                self.was_routing.add(v[0])
-                self.tec_routing_path.append([v[0], v[1]])
-                for edge in v[0].get_edges():
-                    if edge.get_parent() == v[0] and edge.get_child() not in self.was_routing:
-                        self.routing_path.append([edge.get_child(), v[1] + 1, edge])
-                        self.was_routing.add(edge.get_child())
-            else:
-                if len(self.tec_routing_path) and self.tec_routing_path[-1][1] != v[1] - 1:
-                    self.tec_routing_path.pop()[0].set_color((255, 255, 255))
-                    if len(self.tec_routing_path):
-                        self.tec_routing_path.pop().set_color((0, 0, 0))
-                    self.routing_path.append(v)
-                    return
-
-                self.tec_routing_path.append(v[2])
-                v[2].set_color((72, 125, 231))
-                self.tec_routing_path.append([v[0], v[1]])
-                v[0].set_color((72, 125, 231))
-                if v[0] == self.routing_finish:
-                    print(self.tec_routing_path)
-                    for i in range(len(self.tec_routing_path)):
-                        if i % 2:
-                            self.tec_routing_path[i].set_color((0, 255, 0))
-                        else:
-                            self.tec_routing_path[i][0].set_color((0, 255, 0))
-
-                    self.is_finish_routing = True
-                    self.routing_path.clear()
-                    mb.showinfo("Информация", "Путь найден")
-                    return
-
-                for edge in v[0].get_edges():
-                    if edge.get_parent() == v[0] and edge.get_child() not in self.was_routing:
-                        self.routing_path.append([edge.get_child(), v[1] + 1, edge])
-                        self.was_routing.add(edge.get_child())
-
-        elif not self.is_finish_routing:
-            if len(self.tec_routing_path):
-                self.tec_routing_path.pop()[0].set_color((255, 255, 255))
-                if len(self.tec_routing_path):
-                    self.tec_routing_path.pop().set_color((0, 0, 0))
-                return
-
-            self.is_finish_routing = True
+        if len(self.packets) > self.routing_packet_limit:
+            mb.showinfo("Информация", "Превышен лимит пакетов для простой маршруизации. "
+                                      "Успешно доставлено пакетов {self.packets_finished}")
+            self.is_start_routing = False
             self.clear_all_colors()
-            mb.showinfo("Информация", "Пути не существует")
+            self.packets.clear()
+            return
+
+        if datetime.datetime.now() - self.routing_time < datetime.timedelta(seconds=1):
+            return
+
+        if self.packet_number > self.routing_packet_count:
+            if len(self.packets) == 0:
+                mb.showinfo("Информация", f"Простая маршруизация завершена. "
+                                          f"Успешно доставлено пакетов {self.packets_finished}")
+                self.is_start_routing = False
+                self.clear_all_colors()
+                self.packets.clear()
+            return
+
+        if self.routing_method == "memory" and self.packet_number <= self.routing_packet_count / 2:
+            self.add_packet(Packet(self.packet_number, self.routing_start, self.routing_finish, "random"))
+        else:
+            if self.routing_method == "memory":
+                if self.packets:
+                    return
+                if not self.memory_path:
+                    mb.showinfo("Информация", "Фиксированная маршруизации не нашла путь.")
+                    self.is_start_routing = False
+                    self.clear_all_colors()
+                    self.packets.clear()
+                    return
+                print(self.memory_path)
+                self.add_packet(Packet(self.packet_number, self.routing_start, self.routing_finish,
+                                       self.routing_method, self.memory_path))
+            else:
+                self.add_packet(Packet(self.packet_number, self.routing_start, self.routing_finish, self.routing_method))
+        self.packet_number += 1
+        self.routing_time = datetime.datetime.now()
 
     def table(self):
         self.label = my_font.render("", False, (20, 20, 20))
@@ -757,9 +945,6 @@ class Graph:
             parent = nodes_num[edge.get_parent()]
             child = nodes_num[edge.get_child()]
             table[parent][child] = edge.get_distance()
-
-        for i in table:
-            print(i)
 
         self.selected_edges.clear()
         self.edges.clear()
