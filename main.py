@@ -9,6 +9,7 @@ from ordered_set import OrderedSet
 from tkinter import *
 
 inf = 1e18
+path_table = {}
 
 
 def rotate(origin, point, angle):
@@ -23,11 +24,12 @@ def rotate(origin, point, angle):
 
 
 class Table(Tk):
-    def __init__(self, table, parent=None):
+    def __init__(self, table, parent=None, title="Матрица инцидентности"):
         Tk.__init__(self, parent)
         self.parent = parent
         self.table = table
         self.ret = []
+        self.title_name = title
         self.initialize()
 
     def initialize(self):
@@ -50,6 +52,9 @@ class Table(Tk):
                 if i == 0 or j == 0:
                     state = DISABLED
 
+                if self.title_name != "Матрица инцидентности":
+                    state = DISABLED
+
                 intvar = IntVar()
                 intvar.set(self.table[i][j])
                 self.table[i][j] = intvar
@@ -59,10 +64,11 @@ class Table(Tk):
 
                 self.e.grid(row=i, column=j)
 
-        SubmitBtn = Button(text="OK", command=self.submit)
-        SubmitBtn.grid(row=lines, column=lines // 2, sticky='W', padx=5, pady=2)
+        if self.title_name == "Матрица инцидентности":
+            SubmitBtn = Button(text="OK", command=self.submit)
+            SubmitBtn.grid(row=lines, column=lines // 2, sticky='W', padx=5, pady=2)
 
-        self.title("Матрица инцидентности")
+        self.title(self.title_name)
         self.resizable(False, False)
         self.mainloop()
 
@@ -162,10 +168,11 @@ class RoutingSettings(Tk):
 
 
 class Packet:
-    def __init__(self, number, start_node, finish_node, method, path=None, next=None):
+    def __init__(self, number, start_node, finish_node, method, path=None, next=None, len=0):
         global my_font
 
         self.number = number
+        self.node_num = 0
         self.tec_node = start_node
         self.finish_node = finish_node
         self.path = []
@@ -174,6 +181,7 @@ class Packet:
         self.method = method
         self.color = (255, 255, 255)
         self.text = my_font.render(str(self.number), False, (0, 0, 0))
+        self.len = len
 
         if next:
             self.next_node = next
@@ -194,11 +202,12 @@ class Packet:
             return
 
         n = []
+        l = {}
         for edge in self.tec_node.get_edges():
             if edge.get_parent() == self.tec_node:
                 n.append(edge.get_child())
+                l[edge.get_child()] = edge.get_distance()
 
-        print(n)
         if len(n) == 0:
             self.next_node = self.tec_node
             graph.remove_packet(self)
@@ -206,11 +215,14 @@ class Packet:
 
         if self.method == "random":
             self.next_node = random.choice(n)
+            self.len += l[self.next_node]
             return
 
         self.next_node = n[0]
         for i in range(1, len(n)):
-            graph.add_packet(Packet(self.number, self.tec_node, self.finish_node, self.method, next=n[i]))
+            graph.add_packet(Packet(self.number, self.tec_node, self.finish_node, self.method,
+                                    next=n[i], len=self.len + l[n[i]]))
+        self.len += l[self.next_node]
 
     def is_success(self) -> bool:
         return self.finish_node == self.tec_node
@@ -225,7 +237,7 @@ class Packet:
 
         if self.tec_node == self.finish_node:
             self.path.append(self.finish_node)
-            graph.add_memory_path(self.path[1:])
+            graph.add_memory_path(self.path[1:], self.len)
             graph.remove_packet(self)
             return
 
@@ -477,6 +489,7 @@ class Graph:
         self.routing_packet_count = 0
         self.routing_time_limit = 0
         self.routing_packet_limit = 0
+        self.memory_path_length = inf
         self.memory_path = []
         self.was_rout = set()
         self.routing_method = ""
@@ -582,6 +595,7 @@ class Graph:
             self.clear_all_colors()
             self.is_start_routing = False
             self.is_finish_routing = False
+            self.packets.clear()
 
         return False
 
@@ -827,9 +841,23 @@ class Graph:
     def add_packet(self, packet):
         self.packets.append(packet)
 
-    def add_memory_path(self, path):
-        if not self.memory_path or len(path) < len(self.memory_path):
+    def add_memory_path(self, path, path_lenght):
+        global path_table
+
+        for i in range(len(path)):
+            num = (self.routing_start, path[i].get_num())
+            t = path_table.get(num, inf)
+            path_table[num] = min(t, i + 1)
+
+        for i in range(len(path)):
+            for j in range(i + 1, len(path)):
+                num = (path[i].get_num(), path[j].get_num())
+                t = path_table.get(num, inf)
+                path_table[num] = min(t, j - i)
+
+        if not self.memory_path or self.memory_path_length > path_lenght:
             self.memory_path = path[::-1]
+            self.memory_path_length = path_lenght
 
     def remove_packet(self, packet):
         if packet.is_success():
@@ -842,6 +870,10 @@ class Graph:
             pass
 
     def start_simple_routing(self):
+        self.label = my_font.render("", False, (20, 20, 20))
+        if self.is_routing():
+            return
+
         if len(self.selected_nodes) != 2 or len(self.selected_edges) != 0:
             mb.showinfo("Информация", "Для запуска алгоритма простой маршруизации необходимо выбрать только 2 вершины")
             return
@@ -851,11 +883,6 @@ class Graph:
             start, finish = finish, start
 
         self.selected_nodes.clear()
-
-        self.label = my_font.render("", False, (20, 20, 20))
-        if self.is_routing():
-            return
-
         rot = RoutingSettings()
         data = rot.get()
 
@@ -868,6 +895,7 @@ class Graph:
         self.is_start_routing = True
         self.packets_finished = 0
         self.packet_number = 1
+        self.memory_path_length = inf
         self.was_rout.clear()
         self.memory_path.clear()
         self.routing_packet_count, self.routing_time_limit, self.routing_packet_limit, self.routing_method = data
@@ -903,6 +931,7 @@ class Graph:
                 self.is_start_routing = False
                 self.clear_all_colors()
                 self.packets.clear()
+
             return
 
         if self.routing_method == "memory" and self.packet_number <= self.routing_packet_count / 2:
@@ -917,13 +946,28 @@ class Graph:
                     self.clear_all_colors()
                     self.packets.clear()
                     return
-                print(self.memory_path)
+
                 self.add_packet(Packet(self.packet_number, self.routing_start, self.routing_finish,
                                        self.routing_method, self.memory_path))
             else:
-                self.add_packet(Packet(self.packet_number, self.routing_start, self.routing_finish, self.routing_method))
+                self.add_packet(Packet(self.packet_number, self.routing_start, self.routing_finish,
+                                       self.routing_method))
         self.packet_number += 1
         self.routing_time = datetime.datetime.now()
+
+    def view_table(self):
+        global path_table
+
+        table = [[0] + [n.get_num() for n in self.nodes]]
+
+        for i in range(len(self.nodes)):
+            table.append([self.nodes[i].get_num()])
+            for j in range(len(self.nodes)):
+                num = (self.nodes[i].get_num(), self.nodes[j].get_num())
+                t = path_table.get(num, 0)
+                table[-1].append(t)
+
+        Table(table, title="Таблица маршрута по опыту")
 
     def table(self):
         self.label = my_font.render("", False, (20, 20, 20))
@@ -976,7 +1020,8 @@ buttons = []
 
 frame = 0
 
-Button_menu(0, 0, 1300, 30, 'Матрица инцидентности', graph.table)
+Button_menu(0, 0, 650, 30, 'Матрица инцидентности', graph.table)
+Button_menu(650, 0, 650, 30, 'Таблица по опыту', graph.view_table)
 Button_menu(0, 30, 200, 30, 'Добавить вершину', graph.add_node)
 Button_menu(200, 30, 200, 30, 'Удалить выбранное', graph.remove_selected)
 Button_menu(400, 30, 200, 30, 'Добавить ребро', graph.add_edge)
