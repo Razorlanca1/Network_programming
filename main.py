@@ -936,10 +936,13 @@ class Graph:
 
         if self.routing_method == "memory" and self.packet_number <= self.routing_packet_count / 2:
             self.add_packet(Packet(self.packet_number, self.routing_start, self.routing_finish, "random"))
+            self.is_pack = True
         else:
             if self.routing_method == "memory":
-                if self.packets:
+                if self.packets and self.is_pack:
                     return
+                else:
+                    self.is_pack = False
                 if not self.memory_path:
                     mb.showinfo("Информация", "Фиксированная маршруизации не нашла путь.")
                     self.is_start_routing = False
@@ -948,7 +951,7 @@ class Graph:
                     return
 
                 self.add_packet(Packet(self.packet_number, self.routing_start, self.routing_finish,
-                                       self.routing_method, self.memory_path))
+                                       self.routing_method, self.memory_path[::]))
             else:
                 self.add_packet(Packet(self.packet_number, self.routing_start, self.routing_finish,
                                        self.routing_method))
